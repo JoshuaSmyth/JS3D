@@ -22,51 +22,130 @@
 
     <script type="application/javascript">
 
-        var canvas = document.getElementById("canvas");
-        var canvas_context = canvas.getContext("2d");
-        var canvas_buffer = canvas_context.getImageData(0, 0, canvas.width, canvas.height);
-        var canvas_pitch = canvas_buffer.width * 4;
+    // Globals
+    var canvas = document.getElementById("canvas");
+    var canvas_context = canvas.getContext("2d");
+    var canvas_buffer = canvas_context.getImageData(0, 0, canvas.width, canvas.height);
+    var canvas_pitch = canvas_buffer.width * 4;
 
-        var PutPixel = function(x, y, color) 
+    // Geometry
+    var Pt = function(x, y) 
+    {
+        if (!(this instanceof Pt)) 
+        { 
+            return new Pt(x, y); 
+        }
+
+        this.x = x;
+        this.y = y;
+    }
+
+    // Drawing Functions
+    var PutPixel = function(x, y, color) 
+    {
+        x = canvas.width/2 + (x | 0);
+        y = canvas.height/2 - (y | 0) - 1;
+
+        if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) 
         {
-            x = canvas.width/2 + (x | 0);
-            y = canvas.height/2 - (y | 0) - 1;
+            return;
+        }
 
-            if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) 
+        var offset = 4*x + canvas_pitch*y;
+        canvas_buffer.data[offset++] = color[0];
+        canvas_buffer.data[offset++] = color[1];
+        canvas_buffer.data[offset++] = color[2];
+        canvas_buffer.data[offset++] = 255;
+    }
+
+    var Interpolate = function(i0, d0, i1, d1) 
+    {
+        if (i0 == i1) 
+        {
+            return [d0];
+        }
+
+        var values = [];
+        var a = (d1 - d0) / (i1 - i0);
+        var d = d0;
+        for (var i = i0; i <= i1; i++) 
+        {
+            values.push(d);
+            d += a;
+        }
+
+        return values;
+    }
+
+    var DrawLine = function(p0, p1, color)
+    {
+        // TODO Replace with Breshams? - Profile!
+
+        var dx = p1.x - p0.x;
+        var dy = p1.y - p0.y;
+
+        if (Math.abs(dx) > Math.abs(dy))
+        {
+            // Horizontal(ish)
+            if (dx < 0)
             {
-                return;
+                var swap = p0;
+                p0 = p1;
+                p1 = swap;
             }
 
-            var offset = 4*x + canvas_pitch*y;
-            canvas_buffer.data[offset++] = color[0];
-            canvas_buffer.data[offset++] = color[1];
-            canvas_buffer.data[offset++] = color[2];
-            canvas_buffer.data[offset++] = 255;
+            var ys = Interpolate(p0.x, p0.y, p1.x, p1.y);
+            for (var x = p0.x; x <= p1.x; x++) 
+            {
+                PutPixel(x, ys[(x - p0.x) | 0], color);
+            }
         }
-
-        var UpdateCanvas = function() 
+        else
         {
-            canvas_context.putImageData(canvas_buffer, 0, 0);
+            // Vertical(ish)
+            if (dy < 0) 
+            { 
+                var swap = p0; 
+                p0 = p1; 
+                p1 = swap; 
+            }
+
+            var xs = Interpolate(p0.y, p0.x, p1.y, p1.x);
+            for (var y = p0.y; y <= p1.y; y++) 
+            {
+                PutPixel(xs[(y - p0.y) | 0], y, color);
+            }
         }
+    }
+
+    // Main Functions
+    var UpdateCanvas = function() 
+    {
+        canvas_context.putImageData(canvas_buffer, 0, 0);
+    }
 
 
-        var x = 10;
-        var y = 5;
-        function update()
-        {
-            window.requestAnimationFrame(update); 
-            PutPixel(x, y, [x, 0, 0] );
-            
-            // TODO Main Loop Here
-            
-            UpdateCanvas();
-        };
+    var x = 10;
+    var y = 5;
+    function update()
+    {
+        window.requestAnimationFrame(update); 
+        PutPixel(x, y, [x, 0, 0] );
+        
+        DrawLine(Pt(-200, -100), Pt(240, 120), [255, 0, 0]);
+        DrawLine(Pt(-50, -200), Pt(60, 240), [0, 255, 0]);
 
-        function init()
-        {
-            window.requestAnimationFrame(update);
-        }
+        // TODO Main Loop Here
+        
+        UpdateCanvas();
+    };
 
-        init();
+    function init()
+    {
+        window.requestAnimationFrame(update);
+    }
+
+    init();
+
     </script>
 </html>
