@@ -27,6 +27,7 @@
     var canvas_context = canvas.getContext("2d");
     var canvas_buffer = canvas_context.getImageData(0, 0, canvas.width, canvas.height);
     var canvas_pitch = canvas_buffer.width * 4;
+    var canvas_size = canvas_buffer.width * canvas_buffer.height * 4
 
     // Geometry
     var Pt = function(x, y) 
@@ -38,6 +39,19 @@
 
         this.x = x;
         this.y = y;
+    }
+
+    var ClearCanvas = function()
+    {
+        // Note: There's probably a faster way of doing this...
+        for(var offset=0;offset<canvas_size;)
+        {
+            
+            canvas_buffer.data[offset++] = 0;
+            canvas_buffer.data[offset++] = 255;
+            canvas_buffer.data[offset++] = 255;
+            canvas_buffer.data[offset++] = 255;
+        }
     }
 
     // Drawing Functions
@@ -60,6 +74,9 @@
 
     var Interpolate = function(i0, d0, i1, d1) 
     {
+        // TODO Write version that returns a line object instead of an array
+        // preferably a line object from an object pool... ?
+
         if (i0 == i1) 
         {
             return [d0];
@@ -118,25 +135,78 @@
         }
     }
 
+    var DrawFilledTriangle = function(p0, p1, p2, color) 
+    {
+        // Sort the points from bottom to top.
+        if (p1.y < p0.y) { var swap = p0; p0 = p1; p1 = swap; }
+        if (p2.y < p0.y) { var swap = p0; p0 = p2; p2 = swap; }
+        if (p2.y < p1.y) { var swap = p1; p1 = p2; p2 = swap; }
+
+        // Compute X coordinates of the edges.
+        var x01 = Interpolate(p0.y, p0.x, p1.y, p1.x);
+        var x12 = Interpolate(p1.y, p1.x, p2.y, p2.x);
+        var x02 = Interpolate(p0.y, p0.x, p2.y, p2.x);
+
+        // Merge the two short sides.
+        x01.pop();
+        var x012 = x01.concat(x12);
+
+        // Determine which is left and which is right.
+        var x_left, x_right;
+        var m = (x02.length / 2) | 0;
+        if (x02[m] < x012[m]) 
+        {
+            x_left = x02;
+            x_right = x012;
+        } 
+        else 
+        {
+            x_left = x012;
+            x_right = x02;
+        }
+
+        // Draw horizontal segments.
+        for (var y = p0.y; y <= p2.y; y++) 
+        {
+            for (var x = x_left[y - p0.y]; x <= x_right[y - p0.y]; x++) 
+            {
+                PutPixel(x, y, color);
+            }
+        }
+    }
+
+    var DrawTriangleWireframe = function(p0, p1, p2, color) 
+    {
+        DrawLine(p0, p1, color);
+        DrawLine(p1, p2, color);
+        DrawLine(p0, p2, color);
+    }
+
     // Main Functions
     var UpdateCanvas = function() 
     {
         canvas_context.putImageData(canvas_buffer, 0, 0);
     }
 
-
-    var x = 10;
-    var y = 5;
+    var r = 0;
+    var g = 0;
+    var b = 0;
+    var x = 0;
     function update()
     {
         window.requestAnimationFrame(update); 
-        PutPixel(x, y, [x, 0, 0] );
         
-        DrawLine(Pt(-200, -100), Pt(240, 120), [255, 0, 0]);
-        DrawLine(Pt(-50, -200), Pt(60, 240), [0, 255, 0]);
+        ClearCanvas();
 
-        // TODO Main Loop Here
-        
+        x+=0.01;
+        var d = 50 * Math.sin(x)
+        var p0 = Pt(-80+d, -80);
+        var p1 = Pt(80, 50);
+        var p2 = Pt(20, 80);
+
+        DrawFilledTriangle(p0, p1, p2, [0, 255, 0]);
+        DrawTriangleWireframe(p0, p1, p2, [r, g, b]);
+
         UpdateCanvas();
     };
 
