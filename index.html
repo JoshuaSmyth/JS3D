@@ -22,21 +22,43 @@
 
     <script type="application/javascript">
 
-    // Globals
+    ////////////////////////////////////////////////////////////////////////////
+    // Globals                                                                //
+    ////////////////////////////////////////////////////////////////////////////
     var canvas = document.getElementById("canvas");
     var canvas_context = canvas.getContext("2d");
     var canvas_buffer = canvas_context.getImageData(0, 0, canvas.width, canvas.height);
     var canvas_pitch = canvas_buffer.width * 4;
-    var canvas_size = canvas_buffer.width * canvas_buffer.height * 4
+    var canvas_size = canvas_buffer.width * canvas_buffer.height * 4;
 
-    // Math
+    ////////////////////////////////////////////////////////////////////////////
+    // Scene setup.                                                           //
+    ////////////////////////////////////////////////////////////////////////////
+    var viewport_size = 1;
+    var projection_plane_z = 1;
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Math                                                                   //
+    ////////////////////////////////////////////////////////////////////////////
     var Multiply = function(k, vec) 
     {
         return [k*vec[0], k*vec[1], k*vec[2]];
+    };
+
+    var ViewportToCanvas = function(p2d)
+    {
+        return Pt(p2d.x * canvas.width / viewport_size, p2d.y * canvas.height / viewport_size);
     }
 
+    var ProjectVertex = function(v)
+    {
+        return ViewportToCanvas(Pt(v.x * projection_plane_z / v.z, v.y * projection_plane_z / v.z));
+    }
 
-    // Geometry
+    ////////////////////////////////////////////////////////////////////////////
+    // Geometry                                                               //
+    ////////////////////////////////////////////////////////////////////////////
     var Pt = function(x, y, h) 
     {
         if (!(this instanceof Pt)) 
@@ -47,8 +69,31 @@
         this.x = x;
         this.y = y;
         this.h = h;
-    }
+    };
 
+    var Vertex = function(x, y, z)
+    {
+        if (!(this instanceof Vertex))
+        {
+            return new Vertex(x, y, z);
+        }
+
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    };
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Constants                                                              //
+    ////////////////////////////////////////////////////////////////////////////
+    var RED = [255, 0, 0];
+    var GREEN = [0, 255, 0];
+    var BLUE = [0, 0, 255];
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Drawing Functions                                                      //
+    ////////////////////////////////////////////////////////////////////////////
     var ClearCanvas = function()
     {
         // Note: There's probably a faster way of doing this...
@@ -59,9 +104,8 @@
             canvas_buffer.data[offset++] = 255;
             canvas_buffer.data[offset++] = 255;
         }
-    }
+    };
 
-    // Drawing Functions
     var PutPixel = function(x, y, color) 
     {
         x = canvas.width/2 + (x | 0);
@@ -77,7 +121,7 @@
         canvas_buffer.data[offset++] = color[1];
         canvas_buffer.data[offset++] = color[2];
         canvas_buffer.data[offset++] = 255;
-    }
+    };
 
     var Interpolate = function(i0, d0, i1, d1) 
     {
@@ -99,7 +143,7 @@
         }
 
         return values;
-    }
+    };
 
     var DrawLine = function(p0, p1, color)
     {
@@ -140,7 +184,7 @@
                 PutPixel(xs[(y - p0.y) | 0], y, color);
             }
         }
-    }
+    };
 
     var DrawShadedTriangle = function(p0, p1, p2, color) 
     {
@@ -165,8 +209,6 @@
   
         h01.pop();
         var h012 = h01.concat(h12);
-
-
 
         // Determine which is left and which is right.
         var x_left, x_right;
@@ -196,13 +238,12 @@
             var xr = x_right[y - p0.y] | 0;
             var h_segment = Interpolate(xl, h_left[y - p0.y], xr, h_right[y - p0.y]);
 
-
             for (var x = xl; x <= xr; x++) 
             {
                 PutPixel(x, y, Multiply(h_segment[x - xl], color));
             }
         }
-    }
+    };
 
     var DrawFilledTriangle = function(p0, p1, p2, color) 
     {
@@ -244,20 +285,67 @@
                 PutPixel(x, y, color);
             }
         }
-    }
+    };
 
     var DrawTriangleWireframe = function(p0, p1, p2, color) 
     {
         DrawLine(p0, p1, color);
         DrawLine(p1, p2, color);
         DrawLine(p0, p2, color);
-    }
+    };
 
     // Main Functions
     var UpdateCanvas = function() 
     {
         canvas_context.putImageData(canvas_buffer, 0, 0);
-    }
+    };
+
+    var render = function()
+    {
+        x+=0.01;
+        var d = 50 * Math.sin(x)
+        var p0 = Pt(-80+d, -80, 0.25);
+        var p1 = Pt(80, 50, 0.5);
+        var p2 = Pt(20, 80, 0.75);
+
+        //DrawFilledTriangle(p0, p1, p2, [0, 255, 0]);
+
+        // Note: ATM only triangle color with shading, not shading per vertex.
+        // But could be used as input into a dither stage?
+        DrawShadedTriangle(p0, p1, p2, [0, 255, 0]);        
+        DrawTriangleWireframe(p0, p1, p2, [r, g, b]);
+    };
+
+    var renderPerspectiveCube = function()
+    {
+        x+=0.01;
+        var d = 2 * Math.sin(x)
+
+        var vA = Vertex(d + -0.5, -0.5, 5);
+        var vB = Vertex(d + -0.5, 0.5, 5);
+        var vC = Vertex(d +  0.5, 0.5, 5);
+        var vD = Vertex(d +  0.5, -0.5, 5);
+
+        var vAb = Vertex(d + -0.5, -0.5, 6);
+        var vBb = Vertex(d + -0.5, 0.5, 6);
+        var vCb = Vertex(d +  0.5, 0.5, 6);
+        var vDb = Vertex(d +  0.5, -0.5, 6);
+
+        DrawLine(ProjectVertex(vA), ProjectVertex(vB), BLUE);
+        DrawLine(ProjectVertex(vB), ProjectVertex(vC), BLUE);
+        DrawLine(ProjectVertex(vC), ProjectVertex(vD), BLUE);
+        DrawLine(ProjectVertex(vD), ProjectVertex(vA), BLUE);
+
+        DrawLine(ProjectVertex(vAb), ProjectVertex(vBb), RED);
+        DrawLine(ProjectVertex(vBb), ProjectVertex(vCb), RED);
+        DrawLine(ProjectVertex(vCb), ProjectVertex(vDb), RED);
+        DrawLine(ProjectVertex(vDb), ProjectVertex(vAb), RED);
+
+        DrawLine(ProjectVertex(vA), ProjectVertex(vAb), GREEN);
+        DrawLine(ProjectVertex(vB), ProjectVertex(vBb), GREEN);
+        DrawLine(ProjectVertex(vC), ProjectVertex(vCb), GREEN);
+        DrawLine(ProjectVertex(vD), ProjectVertex(vDb), GREEN);
+    };
 
     var r = 0;
     var g = 0;
@@ -269,20 +357,8 @@
         
         ClearCanvas();
 
-        x+=0.01;
-        var d = 50 * Math.sin(x)
-        var p0 = Pt(-80+d, -80, 0.25);
-        var p1 = Pt(80, 50, 0.5);
-        var p2 = Pt(20, 80, 0.75);
-
-        //DrawFilledTriangle(p0, p1, p2, [0, 255, 0]);
-
-
-        // Note: ATM only triangle color with shading, not shading per vertex.
-        // But could be used as input into a dither stage?
-        DrawShadedTriangle(p0, p1, p2, [0, 255, 0]);
-        
-        DrawTriangleWireframe(p0, p1, p2, [r, g, b]);
+        render();
+        renderPerspectiveCube();
 
         UpdateCanvas();
     };
@@ -290,7 +366,7 @@
     function init()
     {
         window.requestAnimationFrame(update);
-    }
+    };
 
     init();
 
